@@ -1,65 +1,53 @@
 # PoolParty wiki: https://grips.semantic-web.at/display/POOLDOKU/PoolParty%27s+SPARQL+Endpoint
 
-
 import requests
-from requests.auth import HTTPProxyAuth
 import json
-from SPARQLWrapper import SPARQLWrapper, JSON
+from datetime import datetime
+import pytz
 
 
-URI_TEMPLATE = 'https://{SERVER}/PoolParty/sparql/{PROJECT-ID}'
+def project_has_changed(project_id, changed_since_date):
+    URI_TEMPLATE = 'https://{SERVER}/PoolParty/sparql/{PROJECT-ID}'
+    ands_server = 'editor.vocabs.ands.org.au'
+    sparql_uri = URI_TEMPLATE\
+        .replace('{SERVER}', ands_server)\
+        .replace('{PROJECT-ID}', project_id)
 
-ands_server = 'editor.vocabs.ands.org.au'
-eg_project_id = 'GACGIOtherVocabs'
-sparql_uri = URI_TEMPLATE\
-    .replace('{SERVER}', ands_server)\
-    .replace('{PROJECT-ID}', eg_project_id)
+    creds = json.load(open('creds.json'))
 
-creds = json.load(open('creds.json'))
-auth = HTTPProxyAuth(creds['usr'], creds['pwd'])
-
-
-print sparql_uri
-query = '''
-    SELECT *
-    WHERE {
-        ?s ?p ?o
+    s = requests.Session()
+    proxies = {
+        "http": 'http://' + creds['ga_usr'] + ':' + creds['ga_pwd'] + '@' + creds['ga_proxy'],
+        "https": 'https://' + creds['ga_usr'] + ':' + creds['ga_pwd'] + '@' + creds['ga_proxy'],
     }
-'''
-s = requests.Session()
-params = {
-    'query': query,
-    'format': 'application/json'
-}
-r = s.get(sparql_uri, params=params, proxies=creds['proxy'], auth=auth)
-print r
+    s.proxies = proxies
+    s.auth = (creds['ands_usr'], creds['ands_pwd'])  # BASIC auth
+    params = {
+        'query': '''
+            PREFIX his: <http://schema.semantic-web.at/ppt/history#>
+            PREFIX cs: <http://purl.org/vocab/changeset/schema#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-"""
-from SPARQLWrapper import SPARQLWrapper, JSON, DIGEST
-
-sparql = SPARQLWrapper("http://example.org/sparql")
-
-sparql.setHTTPAuth(DIGEST)
-sparql.setCredentials('login', 'password')
-
-sparql.setQuery("...")
-sparql.setReturnFormat(JSON)
-
-results = sparql.query().convert()
-"""
-
-"""
-sparql = SPARQLWrapper(sparql_uri)
-sparql.setQuery('''
-    SELECT *
-    WHERE {
-        ?s ?p ?o
+            SELECT ?cd
+            WHERE {
+              ?he cs:createdDate ?cd .
+              FILTER(regex(STR(?he), "^historyEvent") ) .
+              FILTER(?cd > "''' + changed_since_date.strftime('%Y-%m-%dT%H:%M:%SZ') + '''"^^xsd:dateTime)
+            }
+            ORDER BY DESC(?cd)
+            LIMIT 1
+        ''',
+        'format': 'application/json'
     }
-''')
-sparql.setReturnFormat(JSON)
-sparql.setCredentials(user=creds['usr'], passwd=creds['pwd'])
-results = sparql.query().convert()
+    s.params = params
+    r = s.get(sparql_uri)
+    changed = False
+    for result in json.loads(r.content)['results']['bindings']:
+        changed = True
 
-for result in results["results"]["bindings"]:
-    print(result["label"]["value"])
-"""
+    return changed
+
+project_id = 'GACGIOtherVocabs'
+changed_since_date = datetime(2016, 4, 1, 0, 0, 0, 0, pytz.utc)
+print '---'
+print project_has_changed(project_id, changed_since_date)
