@@ -3,5 +3,6 @@
   "ga_pwd": "",
   "ga_proxy": "",
   "ands_usr": "",
-  "ands_pwd": ""
+  "ands_pwd": "",
+  "ands_server": "editor.vocabs.ands.org.au"
 }
