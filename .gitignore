@@ -60,5 +60,8 @@ target/
 
 # Created by .ignore support plugin (hsz.mobi)
 
+# PyCharm
+.idea/
 
+# creds
 creds.json
